@@ -1,0 +1,29 @@
+# What NOT to do - compare with ./Dockerfile
+#   docker build -f Dockerfile.broken -t bookshelf:broken .
+#   docker build -t bookshelf:fixed .
+#   docker images bookshelf
+FROM python:3.13
+
+WORKDIR /app
+
+# Full (non-slim) base image above: ~1 GB
+# Copies ALL code BEFORE installing deps -> any code change re-runs every pip install
+COPY . /app
+
+# One layer per package, versions not pinned
+RUN pip install flask
+RUN pip install pymysql
+RUN pip install cryptography
+
+# Secrets baked into the image - visible to anyone with `docker inspect`
+ENV MYSQL_HOST=localhost
+ENV MYSQL_USER=root
+ENV MYSQL_PASSWORD=supersecretpassword
+
+# Exposes ports the app never uses
+EXPOSE 5000
+EXPOSE 3306
+EXPOSE 22
+
+# Runs as root, dev server instead of gunicorn, no HEALTHCHECK
+CMD ["python", "app.py"]

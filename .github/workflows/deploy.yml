@@ -1,0 +1,120 @@
+name: Deploy
+
+# Runs only AFTER the CI Pipeline finishes on main
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types: [completed]
+    branches: [main]
+
+# Never run two deployments at once, and never cancel one halfway
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY_IMAGE: ${{ vars.DOCKERHUB_USERNAME }}/bookshelf
+  # The exact commit CI tested and pushed - we deploy that image, never rebuild
+  IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+
+jobs:
+  # ---------------- Staging: automatic ----------------
+  deploy-staging:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      APP_PORT: 5000 # shell env overrides the value in .env
+    steps:
+      - name: Checkout the tested commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Pull the image CI pushed
+        run: docker pull "$REGISTRY_IMAGE:$IMAGE_TAG"
+
+      - name: Start staging stack (app + MySQL)
+        run: |
+          # Throwaway staging DB; a real one would use environment secrets
+          cp .env.example .env
+          APP_IMAGE="$REGISTRY_IMAGE:$IMAGE_TAG" docker compose up -d --no-build --wait db app
+          docker compose ps
+
+      - name: Verify staging
+        run: |
+          curl -fsS http://localhost:5000/ready; echo
+          echo "Books in staging DB: $(curl -fsS http://localhost:5000/api/books | jq length)"
+          curl -fsS http://localhost:5000/health | jq -e --arg v "$IMAGE_TAG" '.version == $v'
+
+      - name: Deployment summary
+        run: |
+          {
+            echo "## 🚀 Staging deployment successful"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Environment | staging |"
+            echo "| Image | \`$REGISTRY_IMAGE:${IMAGE_TAG::7}\` |"
+            echo "| Commit | \`$IMAGE_TAG\` |"
+            echo "| Triggered by | ${{ github.actor }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify team
+        run: echo "📣 Slack notification - Deployment to STAGING successful (${IMAGE_TAG::7})"
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  # ---------------- Production: needs manual approval ----------------
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    # Add "Required reviewers" to this environment in repo Settings -> Environments
+    environment:
+      name: production
+      url: https://hub.docker.com/r/${{ vars.DOCKERHUB_USERNAME }}/bookshelf/tags
+    permissions:
+      contents: write # to create the GitHub Release
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Promote image to "stable" (same image, no rebuild)
+        run: |
+          docker buildx imagetools create -t "$REGISTRY_IMAGE:stable" "$REGISTRY_IMAGE:$IMAGE_TAG"
+          echo "Production now runs $REGISTRY_IMAGE:stable -> ${IMAGE_TAG::7}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$(date -u +%Y.%m.%d)-${{ github.run_number }}"
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$IMAGE_TAG" \
+            --title "Production Release $TAG" \
+            --notes "Automated production deployment. Image: \`$REGISTRY_IMAGE:$IMAGE_TAG\` (also tagged \`stable\`)."
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Deployment summary
+        run: |
+          {
+            echo "## ✅ Production deployment successful"
+            echo "- Release: **$RELEASE_TAG**"
+            echo "- Image: \`$REGISTRY_IMAGE:stable\` → \`${IMAGE_TAG::7}\`"
+            echo "- Approved and run by: ${{ github.actor }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify team
+        run: echo "📣 Slack notification - Deployment to PRODUCTION successful ($RELEASE_TAG)"

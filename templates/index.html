@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bookshelf</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; color: #1f2937; }
+    h1 { margin-bottom: 4px; }
+    .version { color: #6b7280; font-size: 14px; margin-bottom: 24px; }
+    .version code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+    .error { background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e5e7eb; }
+    th { background: #f9fafb; }
+    form { display: flex; gap: 8px; flex-wrap: wrap; }
+    input { padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; flex: 1; min-width: 120px; }
+    button { padding: 8px 16px; background: #2563eb; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
+    #msg { color: #991b1b; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Bookshelf</h1>
+  <div class="version">Running version <code>{{ version[:7] }}</code></div>
+
+  {% if error %}
+    <p class="error">{{ error }}</p>
+  {% else %}
+    <table>
+      <tr><th>#</th><th>Title</th><th>Author</th><th>Year</th></tr>
+      {% for b in books %}
+        <tr><td>{{ b.id }}</td><td>{{ b.title }}</td><td>{{ b.author }}</td><td>{{ b.year or "" }}</td></tr>
+      {% endfor %}
+    </table>
+
+    <form id="add">
+      <input name="title" placeholder="Title" required>
+      <input name="author" placeholder="Author" required>
+      <input name="year" placeholder="Year" type="number">
+      <button type="submit">Add book</button>
+    </form>
+    <div id="msg"></div>
+  {% endif %}
+
+  <script>
+    const form = document.getElementById("add");
+    if (form) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const res = await fetch("/api/books", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.fromEntries(new FormData(form))),
+        });
+        if (res.ok) location.reload();
+        else document.getElementById("msg").textContent = ((await res.json()).errors || ["Error"]).join(", ");
+      });
+    }
+  </script>
+</body>
+</html>

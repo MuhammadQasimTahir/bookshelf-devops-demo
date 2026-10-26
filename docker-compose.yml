@@ -1,0 +1,86 @@
+services:
+  db:
+    image: mysql:8.4
+    container_name: bookshelf-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - bookshelf-db-data:/var/lib/mysql
+      # Runs only when the volume is empty (first start, or after `down -v`)
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      # -h 127.0.0.1 forces TCP, so it only passes once the REAL server is up (not the init-time one)
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - bookshelf-network
+
+  app:
+    build:
+      context: .
+      target: production
+    # CI/staging sets APP_IMAGE to the image pulled from Docker Hub
+    image: ${APP_IMAGE:-bookshelf:local}
+    container_name: bookshelf-app
+    restart: on-failure:5
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-5000}:5000"
+    environment:
+      MYSQL_HOST: db
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    networks:
+      - bookshelf-network
+
+  db-admin:
+    image: adminer:latest
+    container_name: bookshelf-adminer
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    networks:
+      - bookshelf-network
+
+  test-runner:
+    build:
+      context: .
+      target: test
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: db
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    networks:
+      - bookshelf-network
+    # Only runs with: docker compose --profile test run --rm test-runner
+    profiles:
+      - test
+
+networks:
+  bookshelf-network:
+    driver: bridge
+
+volumes:
+  bookshelf-db-data:
