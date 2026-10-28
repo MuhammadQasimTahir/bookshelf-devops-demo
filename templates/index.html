@@ -26,6 +26,7 @@
   {% if error %}
     <p class="error">{{ error }}</p>
   {% else %}
+    <p>{{ books|length }} books on the shelf</p>
     <table>
       <tr><th>#</th><th>Title</th><th>Author</th><th>Year</th></tr>
       {% for b in books %}

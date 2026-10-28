@@ -53,3 +53,13 @@ def test_homepage_handles_database_error(client, db_down):
 def test_invalid_book_returns_400_before_touching_db(client, db_down):
     res = client.post("/api/books", json={"title": ""})
     assert res.status_code == 400
+
+
+def test_homepage_shows_book_count(client, monkeypatch):
+    fake_books = [
+        {"id": 1, "title": "Accelerate", "author": "Nicole Forsgren", "year": 2018},
+        {"id": 2, "title": "The Phoenix Project", "author": "Gene Kim", "year": 2013},
+    ]
+    monkeypatch.setattr(app_module, "fetch_books", lambda: fake_books)
+    res = client.get("/")
+    assert b"2 books on the shelf" in res.data
