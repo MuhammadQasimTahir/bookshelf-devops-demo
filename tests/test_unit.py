@@ -67,3 +67,14 @@ def test_homepage_shows_book_count(client, monkeypatch):
 
 def test_stats_returns_503_when_database_is_down(client, db_down):
     assert client.get("/api/stats").status_code == 503
+
+ 
+def test_search_filters_books(client, monkeypatch):
+    fake_books = [
+        {"id": 1, "title": "Accelerate", "author": "Nicole Forsgren", "year": 2018},
+        {"id": 2, "title": "The Phoenix Project", "author": "Gene Kim", "year": 2013},
+    ]
+    monkeypatch.setattr(app_module, "fetch_books", lambda: fake_books)
+    res = client.get("/?q=PHOENIX")
+    assert b"The Phoenix Project" in res.data
+    assert b"Accelerate" not in res.data    
