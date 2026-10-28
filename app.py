@@ -104,7 +104,7 @@ def add_book():
     return jsonify(id=book_id, title=title, author=author, year=year), 201
 
 
-q@app.route("/api/stats")
+@app.route("/api/stats")
 def stats():
     """Summary numbers for the whole shelf."""
     try:
