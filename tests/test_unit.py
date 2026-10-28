@@ -63,3 +63,7 @@ def test_homepage_shows_book_count(client, monkeypatch):
     monkeypatch.setattr(app_module, "fetch_books", lambda: fake_books)
     res = client.get("/")
     assert b"2 books on the shelf" in res.data
+
+
+def test_stats_returns_503_when_database_is_down(client, db_down):
+    assert client.get("/api/stats").status_code == 503

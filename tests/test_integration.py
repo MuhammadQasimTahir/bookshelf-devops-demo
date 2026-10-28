@@ -37,3 +37,10 @@ def test_add_book_and_read_it_back(client):
 
     books = client.get("/api/books").get_json()
     assert any(b["id"] == new_id and b["title"] == "Team Topologies" for b in books)
+
+
+def test_stats_counts_books_and_authors(client):
+    stats = client.get("/api/stats").get_json()
+    assert stats["books"] >= 5
+    assert stats["authors"] >= 4
+    assert stats["oldest_year"] <= 2010

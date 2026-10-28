@@ -104,5 +104,31 @@ def add_book():
     return jsonify(id=book_id, title=title, author=author, year=year), 201
 
 
+q@app.route("/api/stats")
+def stats():
+    """Summary numbers for the whole shelf."""
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT COUNT(*) AS books, COUNT(DISTINCT author) AS authors, "
+                    "MIN(year) AS oldest, MAX(year) AS newest FROM books"
+                )
+                row = cur.fetchone()
+        finally:
+            conn.close()
+    except pymysql.MySQLError:
+        return jsonify(error="Database is unavailable"), 503
+
+    return jsonify(
+        books=row["books"],
+        authors=row["authors"],
+        oldest_year=row["oldest"],
+        newest_year=row["newest"],
+        version=config.APP_VERSION,
+    )
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
