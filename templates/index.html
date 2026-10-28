@@ -26,6 +26,10 @@
   {% if error %}
     <p class="error">{{ error }}</p>
   {% else %}
+    <form method="get" style="margin-bottom: 16px">
+      <input name="q" value="{{ q }}" placeholder="Search title or author">
+      <button type="submit">Search</button>
+    </form>
     <p>{{ books|length }} books on the shelf</p>
     <table>
       <tr><th>#</th><th>Title</th><th>Author</th><th>Year</th></tr>
