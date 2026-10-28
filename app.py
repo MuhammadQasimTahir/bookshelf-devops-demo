@@ -47,15 +47,11 @@ def fetch_books():
 
 @app.route("/")
 def index():
-    q = request.args.get("q", "").strip()
     try:
         books, error = fetch_books(), None
     except pymysql.MySQLError:
         books, error = [], "Database is unavailable"
-    if q:
-        needle = q.lower()
-        books = [b for b in books if needle in b["title"].lower() or needle in b["author"].lower()]
-    return render_template("index.html", books=books, error=error, version=config.APP_VERSION, q=q)
+    return render_template("index.html", books=books, error=error, version=config.APP_VERSION)
 
 
 @app.route("/health")
