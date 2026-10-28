@@ -48,6 +48,7 @@ def test_homepage_handles_database_error(client, db_down):
     assert res.status_code == 200
     assert b"Bookshelf" in res.data
     assert b"Database is unavailable" in res.data
+    assert b"Deployed automatically by GitHub Actions" in res.data
 
 
 def test_invalid_book_returns_400_before_touching_db(client, db_down):
