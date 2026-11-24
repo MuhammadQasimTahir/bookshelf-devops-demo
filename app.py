@@ -134,5 +134,24 @@ def stats():
     )
 
 
+@app.route("/api/books/<int:book_id>")
+def get_book(book_id):
+    """Return one book by its id, or 404 if there is no such book."""
+    try:
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, title, author, year FROM books WHERE id = %s", (book_id,))
+                book = cur.fetchone()
+        finally:
+            conn.close()
+    except pymysql.MySQLError:
+        return jsonify(error="Database is unavailable"), 503
+
+    if book is None:
+        return jsonify(error="Book not found"), 404
+    return jsonify(book)
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

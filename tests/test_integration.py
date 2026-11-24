@@ -44,3 +44,10 @@ def test_stats_counts_books_and_authors(client):
     assert stats["books"] >= 5
     assert stats["authors"] >= 4
     assert stats["oldest_year"] <= 2010
+
+
+def test_get_one_book_and_a_missing_book(client):
+    res = client.get("/api/books/1")
+    assert res.status_code == 200
+    assert res.get_json()["title"] == "The Phoenix Project"
+    assert client.get("/api/books/999999").status_code == 404

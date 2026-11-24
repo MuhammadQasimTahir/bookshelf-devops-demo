@@ -79,3 +79,7 @@ def test_search_filters_books(client, monkeypatch):
     res = client.get("/?q=PHOENIX")
     assert b"The Phoenix Project" in res.data
     assert b"Accelerate" not in res.data
+
+
+def test_get_book_returns_503_when_database_is_down(client, db_down):
+    assert client.get("/api/books/1").status_code == 503
